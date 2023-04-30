@@ -127,6 +127,28 @@ const matches = matcher.matchAll('/foo/bar/baz')
 // ]
 ```
 
+### Route Filter
+
+Create a filter function to check if a route matches `include` and `exclude` route patterns:
+
+```ts
+import { createFilter } from 'radix3/utils'
+
+const filter = createFilter({
+  include: ['/admin/**', '/admin', /^\/_api\/\d*/],
+  exclude: ['/admin/login']
+})
+// Result: true
+filter('/admin')
+filter('/admin/users')
+filter('/_api/123')
+// Result: false
+filter('/admin/login')
+filter('/safe-url')
+filter('/page/admin')
+filter('/_api/abc')
+```
+
 ## Performance
 
 See [benchmark](./benchmark).
