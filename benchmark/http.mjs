@@ -2,9 +2,15 @@
 
 import autocannon from "autocannon"; // https://github.com/mcollina/autocannon
 import { listen } from "listhen";
-import { printEnv, benchSets, printStats, logSection, router } from "./utils.mjs";
+import {
+  printEnv,
+  benchSets,
+  printStats,
+  logSection,
+  router,
+} from "./utils.mjs";
 
-async function main () {
+async function main() {
   printEnv();
 
   for (const bench of benchSets) {
@@ -12,7 +18,7 @@ async function main () {
     const { listener, stats } = await createServer();
     const instance = autocannon({
       url: listener.url,
-      requests: bench.requests
+      requests: bench.requests,
     });
     autocannon.track(instance);
     process.once("SIGINT", () => {
@@ -29,16 +35,22 @@ async function main () {
 // eslint-disable-next-line unicorn/prefer-top-level-await
 main().catch(console.error);
 
-async function createServer () {
+async function createServer() {
   const stats = {};
-  const listener = await listen((req, res) => {
-    stats[req.url] = (stats[req.url] || 0) + 1;
-    const match = router.lookup(req.url);
-    if (!match) {
-      stats[match] = (stats[match] || 0) + 1;
-    }
-    res.end(JSON.stringify((match || { error: 404 })));
-  }, { showURL: false });
+  const listener = await listen(
+    (req, res) => {
+      stats[req.url] = (stats[req.url] || 0) + 1;
+      const match = router.lookup(
+        req.url,
+        req.url.endsWith("get") ? { method: "GET" } : undefined
+      );
+      if (!match) {
+        stats[match] = (stats[match] || 0) + 1;
+      }
+      res.end(JSON.stringify(match || { error: 404 }));
+    },
+    { showURL: false }
+  );
 
   return { listener, stats };
 }

@@ -1,11 +1,23 @@
 import { describe, it, expect } from "vitest";
-import { createRouter, NODE_TYPES } from "../src";
+import {
+  createRouter,
+  NODE_TYPES,
+  type HTTPMethod,
+  type RadixRouterOptions,
+} from "../src";
 
-export function createRoutes(paths) {
-  return Object.fromEntries(paths.map((path) => [path, { path }]));
+type RouteDefinition = string | { path: string; method: HTTPMethod };
+export function createRoutes(paths: RouteDefinition[]) {
+  return Object.fromEntries(
+    paths.map((path) => {
+      return typeof path === "string"
+        ? [path, { path }]
+        : [path.path, { method: path.method, payload: { path: path.path } }];
+    })
+  ) as Required<Pick<RadixRouterOptions, "routes">>["routes"];
 }
 
-function testRouter(paths, tests?) {
+function testRouter(paths: string[], tests?: any) {
   const routes = createRoutes(paths);
   const router = createRouter({ routes });
 
@@ -140,8 +152,17 @@ describe("Router insert", function () {
     const route = "/api/v2/route";
     router.insert(route, {});
 
-    expect(router.ctx.staticRoutesMap[route]).to.exist;
+    expect(router.ctx.staticRoutesMap.ALL[route]).to.exist;
   });
+
+  it("should insert static routes with methods into the static route map", function () {
+    const router = createRouter();
+    const route = "/api/v2/route";
+    router.insert({ path: route, method: "PUT", payload: {} });
+
+    expect(router.ctx.staticRoutesMap.PUT[route]).to.exist;
+  });
+
   it("should not insert variable routes into the static route map", function () {
     const router = createRouter();
     const routeA = "/api/v2/**";
@@ -149,8 +170,8 @@ describe("Router insert", function () {
     router.insert(routeA, {});
     router.insert(routeB, {});
 
-    expect(router.ctx.staticRoutesMap[routeA]).to.not.exist;
-    expect(router.ctx.staticRoutesMap[routeB]).to.not.exist;
+    expect(router.ctx.staticRoutesMap.ALL[routeA]).to.not.exist;
+    expect(router.ctx.staticRoutesMap.ALL[routeB]).to.not.exist;
   });
 
   it("should insert placeholder and wildcard nodes correctly into the tree", function () {
@@ -301,5 +322,54 @@ describe("Router remove", function () {
 
     removeResult = router.remove("/some/route/that/never/existed");
     expect(removeResult).to.equal(false);
+  });
+
+  describe("Router with method", function () {
+    const router = createRouter({
+      method: true,
+      routes: createRoutes([
+        { path: "hello", method: "GET" },
+        { path: "ui/components/**", method: "POST" },
+        { path: "**", method: "PUT" },
+      ]),
+    });
+
+    it("can match a route with a method ", function () {
+      expect(router.lookup("hello", { method: "POST" })).to.deep.equal(null);
+      expect(router.lookup("hello", { method: "GET" })).to.deep.equal({
+        path: "hello",
+      });
+      expect(router.lookup("hello")).to.deep.equal({ path: "hello" });
+    });
+
+    it("can insert routes with a method ", function () {
+      router.insert({ path: "cool", method: "GET", payload: { path: "cool" } });
+      expect(router.lookup("cool", { method: "POST" })).to.deep.equal(null);
+      expect(router.lookup("cool", { method: "GET" })).to.deep.equal({
+        path: "cool",
+      });
+      expect(router.lookup("cool")).to.deep.equal({ path: "cool" });
+    });
+
+    it("can match a route with parameters and a method ", function () {
+      const snacbkars = "ui/components/snackbars";
+      expect(router.lookup(snacbkars, { method: "GET" })).to.deep.equal(null);
+      expect(router.lookup(snacbkars, { method: "POST" })).to.deep.equal({
+        path: "ui/components/**",
+        params: { _: "snackbars" },
+      });
+      expect(router.lookup(snacbkars)).to.deep.equal({
+        path: "ui/components/**",
+        params: { _: "snackbars" },
+      });
+    });
+
+    it("can match a wildcard route with a method ", function () {
+      expect(router.lookup("**", { method: "DELETE" })).to.deep.equal(null);
+      expect(router.lookup("**", { method: "PUT" })).to.deep.equal({
+        path: "**",
+      });
+      expect(router.lookup("**")).to.deep.equal({ path: "**" });
+    });
   });
 });

@@ -5,8 +5,11 @@ import type {
   RadixRouter,
   RadixNodeData,
   RadixRouterOptions,
+  LookupOptions,
+  InsertOptions,
+  StaticRoutesMap,
 } from "./types";
-import { NODE_TYPES } from "./types";
+import { HTTPMethods, NODE_TYPES } from "./types";
 
 export function createRouter<T extends RadixNodeData = RadixNodeData>(
   options: RadixRouterOptions = {}
@@ -14,30 +17,59 @@ export function createRouter<T extends RadixNodeData = RadixNodeData>(
   const ctx: RadixRouterContext = {
     options,
     rootNode: createRadixNode(),
-    staticRoutesMap: {},
+    staticRoutesMap: Object.fromEntries(
+      HTTPMethods.map((method) => [method, {}])
+    ) as StaticRoutesMap,
   };
 
-  const normalizeTrailingSlash = (p) =>
+  const normalizePath = (p: string) =>
     options.strictTrailingSlash ? p : p.replace(/\/$/, "") || "/";
+
+  const getInsertOptions = (p: string) =>
+    "method" in options
+      ? {
+          path: normalizePath(p),
+          payload: options.routes[p].payload,
+          method: options.routes[p].method,
+        }
+      : {
+          path: normalizePath(p),
+          payload: options.routes[p],
+        };
 
   if (options.routes) {
     for (const path in options.routes) {
-      insert(ctx, normalizeTrailingSlash(path), options.routes[path]);
+      insert(ctx, getInsertOptions(path));
     }
   }
 
+  const insertRoute = (pathOrObj: string | InsertOptions<T>, data?: T) => {
+    const isStr = typeof pathOrObj === "string";
+    return insert(ctx, {
+      path: normalizePath(isStr ? pathOrObj : pathOrObj.path),
+      payload: isStr ? data : pathOrObj.payload,
+      method: isStr ? undefined : pathOrObj.method,
+    });
+  };
+
   return {
     ctx,
-    // @ts-ignore
-    lookup: (path: string) => lookup(ctx, normalizeTrailingSlash(path)),
-    insert: (path: string, data: any) =>
-      insert(ctx, normalizeTrailingSlash(path), data),
-    remove: (path: string) => remove(ctx, normalizeTrailingSlash(path)),
+    // @ts-expect-error - types are not matching
+    lookup: (path: string, options?: LookupOptions) =>
+      lookup(ctx, normalizePath(path), options),
+    insert: insertRoute,
+    remove: (path: string) => remove(ctx, normalizePath(path)),
   };
 }
 
-function lookup(ctx: RadixRouterContext, path: string): MatchedRoute {
-  const staticPathNode = ctx.staticRoutesMap[path];
+function lookup(
+  ctx: RadixRouterContext,
+  path: string,
+  options?: LookupOptions
+): MatchedRoute {
+  const method = options?.method;
+
+  const staticPathNode = ctx.staticRoutesMap[method ?? "ALL"][path];
   if (staticPathNode) {
     return staticPathNode.data;
   }
@@ -83,6 +115,10 @@ function lookup(ctx: RadixRouterContext, path: string): MatchedRoute {
     return null;
   }
 
+  if (method && node.method !== method) {
+    return null;
+  }
+
   if (paramsFound) {
     return {
       ...node.data,
@@ -93,7 +129,9 @@ function lookup(ctx: RadixRouterContext, path: string): MatchedRoute {
   return node.data;
 }
 
-function insert(ctx: RadixRouterContext, path: string, data: any) {
+function insert<T>(ctx: RadixRouterContext, options: InsertOptions<T>) {
+  const { path, payload: data, method = undefined } = options;
+
   let isStaticRoute = true;
 
   const sections = path.split("/");
@@ -111,7 +149,7 @@ function insert(ctx: RadixRouterContext, path: string, data: any) {
       const type = getNodeType(section);
 
       // Create new node to represent the next part of the path
-      childNode = createRadixNode({ type, parent: node });
+      childNode = createRadixNode({ type, parent: node, method });
 
       node.children.set(section, childNode);
 
@@ -136,7 +174,7 @@ function insert(ctx: RadixRouterContext, path: string, data: any) {
   // Optimization, if a route is static and does not have any
   // variable sections, we can store it into a map for faster retrievals
   if (isStaticRoute === true) {
-    ctx.staticRoutesMap[path] = node;
+    ctx.staticRoutesMap[method || "ALL"][path] = node;
   }
 
   return node;
@@ -175,6 +213,7 @@ function createRadixNode(options: Partial<RadixNode> = {}): RadixNode {
     parent: options.parent || null,
     children: new Map(),
     data: options.data || null,
+    method: options.method || null,
     paramName: options.paramName || null,
     wildcardChildNode: null,
     placeholderChildNode: null,

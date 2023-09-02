@@ -1,3 +1,18 @@
+export const HTTPMethods = [
+  "GET",
+  "HEAD",
+  "PATCH",
+  "POST",
+  "PUT",
+  "DELETE",
+  "CONNECT",
+  "OPTIONS",
+  "TRACE",
+  "ALL",
+] as const;
+
+export type HTTPMethod = (typeof HTTPMethods)[number];
+
 export const NODE_TYPES = {
   NORMAL: 0 as const,
   WILDCARD: 1 as const,
@@ -21,21 +36,40 @@ export interface RadixNode<T extends RadixNodeData = RadixNodeData> {
   parent: RadixNode<T> | null;
   children: Map<string, RadixNode<T>>;
   data: RadixNodeData | null;
+  method: HTTPMethod | null;
   paramName: string | null;
   wildcardChildNode: RadixNode<T> | null;
   placeholderChildNode: RadixNode<T> | null;
 }
 
-export interface RadixRouterOptions {
+export type RadixRouterOptionsPayload = Omit<InsertOptions, "path">;
+
+interface RadixRouterOptionsV1 {
   strictTrailingSlash?: boolean;
-  routes?: Record<string, any>;
+  routes?: Record<string, unknown>;
 }
 
+interface RadixRouterOptionsV2 {
+  strictTrailingSlash?: boolean;
+  method: boolean;
+  routes: Record<string, RadixRouterOptionsPayload>;
+}
+
+export type RadixRouterOptions = RadixRouterOptionsV1 | RadixRouterOptionsV2;
+
+export type StaticRoutesMap = Record<HTTPMethod, Record<string, RadixNode>>;
 export interface RadixRouterContext<T extends RadixNodeData = RadixNodeData> {
   options: RadixRouterOptions;
   rootNode: RadixNode<T>;
-  staticRoutesMap: Record<string, RadixNode>;
+  staticRoutesMap: StaticRoutesMap;
 }
+
+export type LookupOptions = { method?: HTTPMethod };
+export type InsertOptions<T = unknown> = {
+  path: string;
+  payload: T;
+  method?: HTTPMethod;
+};
 
 export interface RadixRouter<T extends RadixNodeData = RadixNodeData> {
   ctx: RadixRouterContext<T>;
@@ -43,10 +77,11 @@ export interface RadixRouter<T extends RadixNodeData = RadixNodeData> {
   /**
    * Perform lookup of given path in radix tree
    * @param path - the path to search for
+   * @param options - lookup options such as method
    *
    * @returns The data that was originally inserted into the tree
    */
-  lookup(path: string): MatchedRoute<T> | null;
+  lookup(path: string, options?: LookupOptions): MatchedRoute<T> | null;
 
   /**
    * Perform an insert into the radix tree
@@ -55,6 +90,12 @@ export interface RadixRouter<T extends RadixNodeData = RadixNodeData> {
    *
    */
   insert(path: string, data: T): void;
+  /**
+   * Perform an insert into the radix tree
+   * @param options - the options to insert
+   *
+   */
+  insert(options: InsertOptions<T>): void;
 
   /**
    * Perform a remove on the tree

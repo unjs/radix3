@@ -9,9 +9,9 @@ Below results are based on my personal PC using WSL2. You can use provided scrip
 Directly benchmarking `lookup` performance using [benchmark](https://www.npmjs.com/package/benchmark)
 
 Scripts:
+
 - `pnpm bench`
 - `pnpm bench:profile` (using [0x](https://www.npmjs.com/package/0x) to generate flamegraph)
-
 
 ```
 --- Test environment ---
@@ -34,14 +34,14 @@ Stats:
 lookup x 1,365,609 ops/sec ±0.64% (88 runs sampled)
 Stats:
  - /choot/123: 7074324
- ```
+```
 
 ## HTTP Benchmark
-
 
 Using [`autocannon`](https://github.com/mcollina/autocannon) and a simple http listener using lookup for realworld performance.
 
 Scripts:
+
 - `pnpm bench:http`
 
 ```
