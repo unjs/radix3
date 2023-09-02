@@ -65,7 +65,7 @@ function lookup(ctx: RadixRouterContext, path: string): MatchedRoute {
     } else {
       node = node.placeholderChildNode;
       if (node !== null) {
-        params[node.paramName] = section;
+        params[node.paramName] = decodeURI(section);
         paramsFound = true;
       } else {
         break;
@@ -75,7 +75,7 @@ function lookup(ctx: RadixRouterContext, path: string): MatchedRoute {
 
   if ((node === null || node.data === null) && wildcardNode !== null) {
     node = wildcardNode;
-    params[node.paramName || "_"] = wildCardParam;
+    params[node.paramName || "_"] = decodeURI(wildCardParam);
     paramsFound = true;
   }
 
