@@ -99,6 +99,9 @@ function _matchRoutes(
   // Order should be from less specific to most specific
   const matches = [];
 
+  // Ignore query parameters
+  path = path.split("?")[0];
+
   // Wildcard
   for (const [key, value] of _sortRoutesMap(table.wildcard)) {
     if (path === key || path.startsWith(key + "/")) {
