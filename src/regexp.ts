@@ -31,29 +31,38 @@ export function routeToRegExp(route: string = "/"): RegExp {
     route = `/${route}`;
   }
 
-  // Compile a trailing single optional group (`{...}?`) inline as `(?:...)?`
-  // instead of expanding it into an alternation of full routes. The alternation
-  // form re-emits every param before the group in both branches, producing
-  // duplicate named groups that PCRE2-family engines reject.
-  const inlineOptional = inlineOptionalGroup(route);
-  if (inlineOptional) {
-    return inlineOptional;
-  }
+  try {
+    // Compile a trailing single optional group (`{...}?`) inline as `(?:...)?`
+    // instead of expanding it into an alternation of full routes. The alternation
+    // form re-emits every param before the group in both branches, producing
+    // duplicate named groups that PCRE2-family engines reject.
+    const inlineOptional = inlineOptionalGroup(route);
+    if (inlineOptional) {
+      return inlineOptional;
+    }
 
-  const groupExpanded = expandGroupDelimiters(route);
-  if (groupExpanded) {
-    const sources = groupExpanded.map((expandedRoute) =>
-      routeToRegExp(expandedRoute).source.slice(1, -1),
-    );
-    // Note: alternation branches may still contain duplicate named capture
-    // groups (e.g. `(?<id>a)|(?<id>b)`) for multi-group / mid-route optionals
-    // that can't be inlined. This is valid in modern JS engines (Node 22+,
-    // Chrome 125+, Firefox 129+, Safari 17+) per TC39 proposal, but is not
-    // portable to PCRE2 without PCRE2_DUPNAMES.
-    return new RegExp(`^(?:${sources.join("|")})$`);
-  }
+    const groupExpanded = expandGroupDelimiters(route);
+    if (groupExpanded) {
+      const sources = groupExpanded.map((expandedRoute) =>
+        routeToRegExp(expandedRoute).source.slice(1, -1),
+      );
+      // Note: alternation branches may still contain duplicate named capture
+      // groups (e.g. `(?<id>a)|(?<id>b)`) for multi-group / mid-route optionals
+      // that can't be inlined. This is valid in modern JS engines (Node 22+,
+      // Chrome 125+, Firefox 129+, Safari 17+) per TC39 proposal, but is not
+      // portable to PCRE2 without PCRE2_DUPNAMES.
+      return new RegExp(`^(?:${sources.join("|")})$`);
+    }
 
-  return _routeToRegExp(route);
+    return _routeToRegExp(route);
+  } catch (err) {
+    if (err instanceof SyntaxError) {
+      throw new Error(
+        `Invalid route pattern \`${route}\`: unterminated \`(\` group. Escape a literal parenthesis as \`\\(\`.`,
+      );
+    }
+    throw err;
+  }
 }
 
 /**

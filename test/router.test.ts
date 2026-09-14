@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest";
 import type { RouterContext } from "../src/types.ts";
 import { createRouter, formatTree } from "./_utils.ts";
-import { addRoute, findRoute, removeRoute } from "../src/index.ts";
+import {
+  createRouter as createBaseRouter,
+  addRoute,
+  findRoute,
+  removeRoute,
+} from "../src/index.ts";
 import { compileRouter } from "../src/compiler.ts";
 
 type TestRoute = {
@@ -993,5 +998,22 @@ describe("Router remove", function () {
       removeRoute(router, "GET", route);
       expect(formatTree(router.root), route).toBe(expected);
     }
+  });
+
+  it("throws descriptive error for unbalanced parenthesis in route pattern (#199)", () => {
+    const router = createBaseRouter<number>();
+    expect(() => addRoute(router, "GET", "/files/(2024", 1)).toThrowError(
+      "Invalid route pattern `/files/(2024`: unterminated `(` group. Escape a literal parenthesis as `\\(`.",
+    );
+    expect(() => addRoute(router, "GET", "/a(b", 1)).toThrowError(
+      "Invalid route pattern `/a(b`: unterminated `(` group. Escape a literal parenthesis as `\\(`.",
+    );
+    expect(() => addRoute(router, "GET", "/files/:id(\\d+", 1)).toThrowError(
+      "Invalid route pattern `/files/:id(\\d+`: unterminated `(` group. Escape a literal parenthesis as `\\(`.",
+    );
+    // Unbalanced ) is treated as static and does not throw
+    expect(() => addRoute(router, "GET", "/a)b", 1)).not.toThrow();
+    // Escaped parenthesis is treated as literal and does not throw
+    expect(() => addRoute(router, "GET", "/files/\\(2024", 1)).not.toThrow();
   });
 });
