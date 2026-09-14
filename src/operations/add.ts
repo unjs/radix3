@@ -27,6 +27,7 @@ export function addRoute<T>(
     return;
   }
 
+  const route = path;
   path = encodeEscapes(path);
 
   const segments = splitRoute(path);
@@ -70,7 +71,7 @@ export function addRoute<T>(
       if (segment === "*") {
         paramsMap.push([i, String(_unnamedParamIndex++), true /* optional */]);
       } else if (segment.includes("(") || segment.includes(":", 1) || !/^:[\w-]+$/.test(segment)) {
-        const [regexp, nextIndex] = getParamRegexp(segment, _unnamedParamIndex);
+        const [regexp, nextIndex] = getParamRegexp(segment, _unnamedParamIndex, route);
         _unnamedParamIndex = nextIndex;
         paramsRegexp[i] = regexp;
         node.hasRegexParam = true;
@@ -111,7 +112,7 @@ export function addRoute<T>(
   }
 }
 
-function getParamRegexp(segment: string, unnamedStart = 0): [RegExp, number] {
+function getParamRegexp(segment: string, unnamedStart = 0, route?: string): [RegExp, number] {
   let _i = unnamedStart;
   // Replace URLPattern \x escapes outside (...) with \uFFFE placeholder
   let _s = "",
@@ -143,5 +144,14 @@ function getParamRegexp(segment: string, unnamedStart = 0): [RegExp, number] {
     .replace(/\((?![?<])/g, () => `(?<${toUnnamedGroupKey(_i++)}>`)
     .replace(/\uFFFE(.)/g, (_, c) => (/[.*+?^${}()|[\]\\]/.test(c) ? `\\${c}` : c));
 
-  return [new RegExp(`^${regex}$`), _i];
+  try {
+    return [new RegExp(`^${regex}$`), _i];
+  } catch (err) {
+    if (err instanceof SyntaxError) {
+      throw new Error(
+        `Invalid route pattern \`${route || segment}\`: unterminated \`(\` group. Escape a literal parenthesis as \`\\(\`.`,
+      );
+    }
+    throw err;
+  }
 }

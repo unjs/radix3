@@ -72,4 +72,18 @@ describe("routeToRegExp", () => {
       expect(duplicates, `expected duplicate named groups for "${route}"`).not.toEqual([]);
     }
   });
+
+  it("throws descriptive error for unbalanced parenthesis in route pattern (#199)", () => {
+    expect(() => routeToRegExp("/files/(2024")).toThrowError(
+      "Invalid route pattern `/files/(2024`: unterminated `(` group. Escape a literal parenthesis as `\\(`.",
+    );
+    expect(() => routeToRegExp("/a(b")).toThrowError(
+      "Invalid route pattern `/a(b`: unterminated `(` group. Escape a literal parenthesis as `\\(`.",
+    );
+    expect(() => routeToRegExp("/files/:id(\\d+")).toThrowError(
+      "Invalid route pattern `/files/:id(\\d+`: unterminated `(` group. Escape a literal parenthesis as `\\(`.",
+    );
+    // Escaped parenthesis does not throw
+    expect(() => routeToRegExp("/files/\\(2024")).not.toThrow();
+  });
 });
